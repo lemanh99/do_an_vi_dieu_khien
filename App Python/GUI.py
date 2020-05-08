@@ -8,49 +8,62 @@ import os
 import pickle
 import numpy as np
 import datetime
+import time as tm
 
 class App(object):
-	"""docstring for App"""
 
 	def __init__(self):
 		super(App, self).__init__()
 		self.root = Tk()
-		self.fields = ('Tổng lượng nước đã tưới', 'Nhiệt độ', 'Độ ẩm', 'Ngày', 'Dự đoán')
+		self.fields = ('Tổng lượng nước đã tưới', 'Nhiệt độ', 'Độ ẩm', 'Dự đoán')
 		self.entries = {}
-		self.frame1 = None
+		self.frame = None
+		self.buttonFrame = None
+		self.buttonFigureFrame = None
 		self.canvas = None
-
+		self.view = None
+		self.timenow = ''
+		self.set_time = ''
+		self.temperature = 20 #set default- update sau 
+		self.humidity = 20  #set default- update sau 
+		self.waterflow = 20 #set default- update sau 
+		self.category_time = 0
+ 
 
 	def app(self):
-		self.setWin()
+		self.GUI_model()
+		
 		self.root.mainloop()
-	def setWin(self):
+		
+	def GUI_model(self):
 		self.root.title("Quan Ly")
 		self.root.rowconfigure(0, weight=1)
 		self.root.columnconfigure(0, weight=1)
 
-		view = Frame(self.root)
-		view.grid(row=0, column=0, sticky=tkinter.constants.NS)
-		ents = self.makeform(view, self.fields)
-		view.bind('<Return>', (lambda event, e = ents: fetch(e)))
-		frame = Frame(self.root)
-		frame.grid(column=0, row=1, sticky=tkinter.constants.NSEW)
-		frame.rowconfigure(0, weight=1)
-		frame.columnconfigure(0, weight=1)
+		self.view = Frame(self.root)
+		self.view.grid(row=0, column=0, sticky=tkinter.constants.NS)
+		ents = self.makeform(self.view, self.fields)
+		self.view.bind('<Return>', (lambda event, e = ents: fetch(e)))
 
-		self.addFigure(self.figure(10), frame)
-		self.get_value_arduino(self.entries)
+		self.frame = Frame(self.root)
+		self.frame.grid(column=0, row=1, sticky=tkinter.constants.NSEW)
+		self.frame.rowconfigure(0, weight=1)
+		self.frame.columnconfigure(0, weight=1)
 
+		self.addFigure(self.figure(10), self.frame)
+		self.sumWaterFlow(self.entries)
+		self.tick()
+		self.nhietDo()
 
-		buttonFrame = Frame(self.root)
-		buttonFrame.grid(row=3, column=0, sticky=tkinter.constants.NS)
-		button1 = Button(buttonFrame, text = 'Tưới', 
+		self.buttonFrame = Frame(self.root)
+		self.buttonFrame.grid(row=3, column=0, sticky=tkinter.constants.NS)
+		button1 = Button(self.buttonFrame, text = 'Tưới', 
 			command=(lambda e = ents: self.btnTuoi(e)))
 		button1.pack(side = LEFT, padx = 5, pady = 5)
-		button2 = Button(buttonFrame, text='Dự đoán',
+		button2 = Button(self.buttonFrame, text='Dự đoán',
 	        command=(lambda e = ents: self.btnPredict(e)))
 		button2.pack(side = LEFT, padx = 5, pady = 5)
-		button3 = Button(buttonFrame, text = 'Thoát', command = buttonFrame.quit)
+		button3 = Button(self.buttonFrame, text = 'Thoát', command = self.buttonFrame.quit)
 		button3.pack(side = LEFT, padx = 5, pady = 5)
 
 	def addFigure(self, fig, frame):
@@ -63,31 +76,40 @@ class App(object):
 	    toolbar.update()
 	    self.canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=1)
 
-	    self.frame1 = Frame(frame)
-	    self.frame1.pack(side=BOTTOM)
-	    b1 = Button(self.frame1, text = '5 ngày trước', 
-	        command=(lambda: self.last_5(self.figure(5), frame)))
+	    self.buttonFigureFrame = Frame(frame)
+	    self.buttonFigureFrame.pack(side=BOTTOM)
+	    b1 = Button(self.buttonFigureFrame, text = '5 ngày trước', 
+	        command=(lambda: self.figure_last(self.figure(5), frame)))
 	    b1.pack(side = LEFT, padx = 5, pady = 5)
 
-	    b2 = Button(self.frame1, text='1 tháng trước',
-	        command=(lambda : self.last_5(self.figure(30), frame)))
+	    b2 = Button(self.buttonFigureFrame, text='1 tháng trước',
+	        command=(lambda : self.figure_last(self.figure(30), frame)))
 	    b2.pack(side = LEFT, padx = 5, pady = 5)
 
-	def last_5(self, fig,frame):
+	def figure_last(self, fig,frame):
 		self.canvas.get_tk_widget().destroy()
 		self.canvas = FigureCanvasTkAgg(fig, master=frame)
 		self.canvas.draw()
 		self.canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=1)
 
+	# Ve Bieu Do
 	def figure(self, number):
-		df = self.read_csv_file('data')
-		df = df.iloc[-number:]
-		figure = plt.Figure(figsize=(5, 4), dpi=100)
-		ax = figure.add_subplot(111)
-		df = df[['Head Size(cm^3)','Brain Weight(grams)']].groupby('Head Size(cm^3)').sum()
-		df.plot(kind='line', legend=True, ax=ax, color='blue',marker='o', fontsize=10)
-		
-		ax.set_title('Biểu đồ thống kê lượng nước')
+		try:
+			df = self.read_csv_file('data')
+			df = df.iloc[-number:]
+			figure = plt.Figure(figsize=(8, 4), dpi=100, constrained_layout=True)
+			ax = figure.add_subplot(111)
+			df = df[['Day','Water flow']]
+			df.plot(kind='line', legend=True, ax=ax, color='blue',marker='o', fontsize=10)
+			ax.legend(['Lượng nước tưới'])
+			ax.set_title('Biểu đồ lượng nước đã tưới')
+			ax.set_ylabel('Lưu lượng nước (ml)')
+			ax.set_xlabel('Ngày tưới')
+			ax.set_xticklabels(df['Day'], rotation=30)
+			ax.grid()
+
+		except:
+			print('Lỗi vẽ biểu đồ')
 		return figure
 
 	#tao frame
@@ -97,43 +119,158 @@ class App(object):
 			lab = Label(row, width=22, text=field+": ", anchor='w')
 			ent = Entry(row)
 			ent.insert(0,"0")
+			# ent.configure(state='disabled')
 			row.pack(side = TOP, fill = X, padx = 5 , pady = 5)
 			lab.pack(side = LEFT)
 			ent.pack(side = RIGHT, expand = YES, fill = X)
 			self.entries[field] = ent
+
+		#Thêm thời gian
+		row = Frame(window)
+		lab = Label(row, width=22, text="Thời gian hiện tại"+": ", anchor='w')
+		lab_time = Label(row, width=22, text='', anchor='w', fg = 'red')
+		row.pack(side = TOP, fill = X, padx = 5 , pady = 5)
+		lab.pack(side = LEFT)
+
+		lab_time.pack(side = RIGHT, expand = YES, fill = X)
+		self.entries['Time'] = lab_time
+
+
+		row = Frame(window)
+		lab = Label(row, width=22, text="Cài đặt thời gian tưới "+": ", anchor='w')
+		ent = Entry(row)
+		ent.insert(0,"")
+		btn_set_time = Button(row, text = 'Set', command=(lambda : self.btnSetTime(self.entries)))
+		row.pack(side = TOP, fill = X, padx = 5 , pady = 5)
+		lab.pack(side = LEFT)
+		btn_set_time.pack(side = RIGHT)
+		ent.pack(side = RIGHT, expand = YES, fill = X)
+		self.entries['Set Time'] = ent
+
+		row = Frame(window)
+		label_notif = Label(row, width=22, text="Thời gian tưới là: ", anchor='w')
+		self.loadSetTime()
+		label_notif1 = Label(row, width=22, anchor='w', fg = 'red')
+		label_notif1.config(text = self.set_time)
+		lab.pack(side = LEFT)
+		row.pack(side = TOP, fill = X, padx = 5 , pady = 5)
+		label_notif1.pack(side = RIGHT, expand = YES, fill = X)
+		label_notif.pack()
+
+		self.entries['Label_time'] = (label_notif,label_notif1)
 		return self.entries
+
+
 
 	#du doan luong nuoc
 	def predict(self):
-		filename = 'model/finalized_model.sav'
-		reg = pickle.load(open(filename, 'rb'))
-		y_pred = reg.predict([[2000]])
+		try:
+			filename = 'model/finalized_model.sav'
+			reg = pickle.load(open(filename, 'rb'))
+			temperature = 27
+			Humidity = 30
+			y_pred = reg.predict([[1, temperature, Humidity]])
+		except:
+			print("Lỗi tranning model")
 		return y_pred
+
 	def btnPredict(self, entries):
 		pred = round(self.predict()[0], 2)
 		entries['Dự đoán'].delete(0,END)
 		entries['Dự đoán'].insert(0, pred)
 
-	def btnTuoi(self, entries):
-	  pass
+	def btnSetTime(self, entries):
+		time = entries['Set Time'].get()
+		if self.stringTime(time, entries):
+			entries['Label_time'][0].config(text='Thời gian tưới mới là:', fg = 'black')
+			entries['Label_time'][1].config(fg = 'black')
+			if self.category == 1:
+				self.set_time = time
+				entries['Label_time'][1].config(text=self.set_time, fg = 'black')
+			elif self.category == 2:
+				self.set_time = time+":00"
+				entries['Label_time'][1].config(text=self.set_time)
+			else:
+				self.set_time = time+":00:00"
+				entries['Label_time'][1].config(text=self.set_time)
+			self.saveSetTime()
+		else:
+			entries['Label_time'][0].config(text='Lỗi định dạng, mời thử lại', fg = 'red')
 
+	def stringTime(self, time, entries):
+		try:
+			if time != datetime.datetime.strptime(time, '%H:%M:%S').strftime('%H:%M:%S'):
+				raise ValueError
+			self.category = 1
+			return True
+		except ValueError:
+			try:
+				if time != datetime.datetime.strptime(time, '%H:%M').strftime('%H:%M'):
+					raise ValueError
+				self.category = 2
+				return True
+			except ValueError:
+				try:
+					if time != datetime.datetime.strptime(time, '%H').strftime('%H'):
+						raise ValueError
+					self.category = 3
+					return True
+				except ValueError:
+					return False
 	#doc file csv
 	def read_csv_file(self, root):
-		csv_path = os.path.join(root, 'headbrain.csv')
+		csv_path = os.path.join(root, 'Flow.csv')
 		df = pd.read_csv(csv_path)
 		return df
 
-	def get_value_arduino(self, entries):
-	  day = datetime.datetime.today().strftime('%d/%m/%Y')
-	  self.entries['Ngày'].delete(0,END)
-	  self.entries['Ngày'].insert(0, day)
-
+	def sumWaterFlow(self, entries):
 	  df = self.read_csv_file('data')
 	  df = df.iloc[-10:]
-
 	  self.entries['Tổng lượng nước đã tưới'].delete(0,END)
-	  self.entries['Tổng lượng nước đã tưới'].insert(0, df['Brain Weight(grams)'].sum())
+	  self.entries['Tổng lượng nước đã tưới'].insert(0, df['Water flow'].sum())
 
+	#oclock
+	def tick(self):
+		newtime = tm.strftime('%H:%M:%S')
+		newday = tm.strftime('%d/%m/%Y')
+		if newtime != self.timenow:
+			self.timenow = newtime +" - "+newday
+			self.entries['Time'].config(text = self.timenow)
+		self.entries['Time'].after(200, self.tick)
+
+	def loadSetTime(self):
+		filename = 'model/set_time.sav'
+		self.set_time = pickle.load(open(filename, 'rb'))
+
+	def saveSetTime(self):
+		time = self.set_time
+		filename = 'model/set_time.sav'
+		pickle.dump(time, open(filename, 'wb'))
+
+	def nhietDo(self):
+		day = datetime.datetime.today().strftime('%H:%M:%S')
+		if day == self.set_time:
+			self.temperature+=1
+			self.entries['Nhiệt độ'].delete(0,END)
+			self.entries['Nhiệt độ'].insert(0, self.temperature)
+			self.humidity+=1
+			self.entries['Độ ẩm'].delete(0,END)
+			self.entries['Độ ẩm'].insert(0, self.humidity)
+			self.btnPredict(self.entries)
+			self.updateFile()
+			self.figure_last(self.figure(10), self.frame)
+		self.root.after(1000, self.nhietDo) #set 1s reload
+
+	def updateFile(self):
+		df = self.read_csv_file('data')
+		columns = ['temperature', 'Humidity', 'Water flow' ,'Day']
+		newday = datetime.datetime.today().strftime('%d/%m/%Y')
+		df = df[['temperature', 'Humidity', 'Water flow' ,'Day']].values
+		new = np.array([[int(self.temperature), int(self.humidity), int(20), newday]])
+		X = np.append(df, new, axis = 0)
+		df = pd.DataFrame.from_records(X, columns = columns)
+		print(df.tail())
+		df.to_csv('./data/Flow.csv')
 if __name__ == "__main__":
     test = App()
     test.app()
