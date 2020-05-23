@@ -9,6 +9,27 @@ import pickle
 import numpy as np
 import datetime
 import time as tm
+from socketIO_client import SocketIO, BaseNamespace
+import pickle
+
+class AppNamespace(BaseNamespace):
+
+    def on_connect(self):
+        print('[Connected]')
+
+    def on_reconnect(self):
+        print('[Reconnected]')
+
+    def on_aaa_response(self):
+        filename = 'model/json.sav'
+        pickle.dump(self, open(filename, 'wb'))
+
+        test = 'model/test.sav'
+        name = pickle.dump(True, open(test, 'wb'))
+        print(self)
+
+    def on_disconnect(self):
+        print('[Disconnected]')
 
 class App(object):
 
@@ -24,15 +45,18 @@ class App(object):
 		self.view = None
 		self.timenow = ''
 		self.set_time = ''
-		self.temperature = 20 #set default- update sau 
-		self.humidity = 20  #set default- update sau 
-		self.waterflow = 20 #set default- update sau 
+		self.temperature = 0 #set default- update sau 
+		self.humidity = 0  #set default- update sau 
+		self.waterflow = 0 #set default- update sau 
 		self.category_time = 0
+		self.socketIO = None
+		self.app_namespace = None
  
 
 	def app(self):
+		self.socketIO = SocketIO('172.20.10.11', 3484)
+		self.app_namespace = self.socketIO.define(AppNamespace, '/webapp')
 		self.GUI_model()
-		
 		self.root.mainloop()
 		
 	def GUI_model(self):
@@ -54,6 +78,7 @@ class App(object):
 		self.sumWaterFlow(self.entries)
 		self.tick()
 		self.nhietDo()
+		
 
 		self.buttonFrame = Frame(self.root)
 		self.buttonFrame.grid(row=3, column=0, sticky=tkinter.constants.NS)
@@ -167,17 +192,16 @@ class App(object):
 		try:
 			filename = 'model/finalized_model.sav'
 			reg = pickle.load(open(filename, 'rb'))
-			temperature = 27
-			Humidity = 30
-			y_pred = reg.predict([[1, temperature, Humidity]])
+			y_pred = reg.predict([[1, self.temperature, self.humidity]])
 		except:
 			print("Lỗi tranning model")
 		return y_pred
 
 	def btnPredict(self, entries):
-		pred = round(self.predict()[0], 2)
+		self.waterflow = round(self.predict()[0], 2)
+		self.send_server({'val': 3000})
 		entries['Dự đoán'].delete(0,END)
-		entries['Dự đoán'].insert(0, pred)
+		entries['Dự đoán'].insert(0, self.waterflow)
 
 	def btnSetTime(self, entries):
 		time = entries['Set Time'].get()
@@ -250,15 +274,25 @@ class App(object):
 	def nhietDo(self):
 		day = datetime.datetime.today().strftime('%H:%M:%S')
 		if day == self.set_time:
-			self.temperature+=1
-			self.entries['Nhiệt độ'].delete(0,END)
-			self.entries['Nhiệt độ'].insert(0, self.temperature)
-			self.humidity+=1
-			self.entries['Độ ẩm'].delete(0,END)
-			self.entries['Độ ẩm'].insert(0, self.humidity)
-			self.btnPredict(self.entries)
-			self.updateFile()
-			self.figure_last(self.figure(10), self.frame)
+			test = 'model/test.sav'
+			# name = pickle.dump(True, open(test, 'wb'))
+			self.receiver_server()
+			name = pickle.load(open(test, 'rb'))
+			print('Kiem tra:', name)
+			if name==True:
+				print('Da thuc hien')
+				filename = 'model/json.sav'
+				json = pickle.load(open(filename, 'rb'))
+				self.temperature = json['Temp']
+				self.entries['Nhiệt độ'].delete(0,END)
+				self.entries['Nhiệt độ'].insert(0, self.temperature)
+				self.humidity = json['Humi']
+				self.entries['Độ ẩm'].delete(0,END)
+				self.entries['Độ ẩm'].insert(0, self.humidity)
+				self.btnPredict(self.entries)
+				self.updateFile()
+				self.figure_last(self.figure(10), self.frame)
+			name = pickle.dump(False, open(test, 'wb'))
 		self.root.after(1000, self.nhietDo) #set 1s reload
 
 	def updateFile(self):
@@ -266,12 +300,26 @@ class App(object):
 		columns = ['temperature', 'Humidity', 'Water flow' ,'Day']
 		newday = datetime.datetime.today().strftime('%d/%m/%Y')
 		df = df[['temperature', 'Humidity', 'Water flow' ,'Day']].values
-		new = np.array([[int(self.temperature), int(self.humidity), int(20), newday]])
+		new = np.array([[int(self.temperature), int(self.humidity), int(self.waterflow), newday]])
 		X = np.append(df, new, axis = 0)
 		df = pd.DataFrame.from_records(X, columns = columns)
-		print(df.tail())
+		# print(df.tail())
 		df.to_csv('./data/Flow.csv')
+
+	def receiver_server(self):
+		# self.socketIO.on('minh', Namespace.on_aaa_response)
+		self.app_namespace.emit('Flow', 1)
+		self.app_namespace.on('FArdunio', AppNamespace.on_aaa_response)
+		print('dagui')
+		self.socketIO.wait(seconds=3)
+
+	def send_server(self, data):
+		print('Da Send', data)
+		self.app_namespace.emit('send', data)
+		self.socketIO.wait(seconds=1)
+
 if __name__ == "__main__":
     test = App()
     test.app()
+
 	  
