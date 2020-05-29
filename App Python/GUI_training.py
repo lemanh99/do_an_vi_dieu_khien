@@ -21,10 +21,10 @@ class AppNamespace(BaseNamespace):
         print('[Reconnected]')
 
     def on_aaa_response(self):
-        filename = 'model/json.sav'
+        filename = 'training/training/model/json.sav'
         pickle.dump(self, open(filename, 'wb'))
 
-        test = 'model/test.sav'
+        test = 'training/training/model/test.sav'
         name = pickle.dump(True, open(test, 'wb'))
         print(self)
 
@@ -74,10 +74,10 @@ class App(object):
 		self.frame.rowconfigure(0, weight=1)
 		self.frame.columnconfigure(0, weight=1)
 
-		self.addFigure(self.figure(10), self.frame)
-		self.sumWaterFlow(self.entries)
+		self.add_figure(self.figure(10), self.frame)
+		self.sum_water_flow(self.entries)
 		self.tick()
-		self.nhietDo()
+		self.thuc_hien_tuoi()
 		
 
 		self.buttonFrame = Frame(self.root)
@@ -91,7 +91,7 @@ class App(object):
 		button3 = Button(self.buttonFrame, text = 'Thoát', command = self.buttonFrame.quit)
 		button3.pack(side = LEFT, padx = 5, pady = 5)
 
-	def addFigure(self, fig, frame):
+	def add_figure(self, fig, frame):
 
 	    self.canvas = FigureCanvasTkAgg(fig, master=frame)  # A tk.DrawingArea.
 	    self.canvas.draw()
@@ -120,7 +120,7 @@ class App(object):
 	# Ve Bieu Do
 	def figure(self, number):
 		try:
-			df = self.read_csv_file('data')
+			df = self.read_csv_file('training/data', 'Flow.csv')
 			df = df.iloc[-number:]
 			figure = plt.Figure(figsize=(8, 4), dpi=100, constrained_layout=True)
 			ax = figure.add_subplot(111)
@@ -165,16 +165,16 @@ class App(object):
 		lab = Label(row, width=22, text="Cài đặt thời gian tưới "+": ", anchor='w')
 		ent = Entry(row)
 		ent.insert(0,"")
-		btn_set_time = Button(row, text = 'Set', command=(lambda : self.btnSetTime(self.entries)))
+		btnSetTime = Button(row, text = 'Set', command=(lambda : self.btn_set_time(self.entries)))
 		row.pack(side = TOP, fill = X, padx = 5 , pady = 5)
 		lab.pack(side = LEFT)
-		btn_set_time.pack(side = RIGHT)
+		btnSetTime.pack(side = RIGHT)
 		ent.pack(side = RIGHT, expand = YES, fill = X)
 		self.entries['Set Time'] = ent
 
 		row = Frame(window)
 		label_notif = Label(row, width=22, text="Thời gian tưới là: ", anchor='w')
-		self.loadSetTime()
+		self.load_set_time()
 		label_notif1 = Label(row, width=22, anchor='w', fg = 'red')
 		label_notif1.config(text = self.set_time)
 		lab.pack(side = LEFT)
@@ -190,7 +190,7 @@ class App(object):
 	#du doan luong nuoc
 	def predict(self):
 		try:
-			filename = 'model/finalized_model.sav'
+			filename = 'training/model/finalized_model.sav'
 			reg = pickle.load(open(filename, 'rb'))
 			y_pred = reg.predict([[1, self.temperature, self.humidity]])
 		except:
@@ -203,9 +203,9 @@ class App(object):
 		entries['Dự đoán'].delete(0,END)
 		entries['Dự đoán'].insert(0, self.waterflow)
 
-	def btnSetTime(self, entries):
+	def btn_set_time(self, entries):
 		time = entries['Set Time'].get()
-		if self.stringTime(time, entries):
+		if self.string_time(time, entries):
 			entries['Label_time'][0].config(text='Thời gian tưới mới là:', fg = 'black')
 			entries['Label_time'][1].config(fg = 'black')
 			if self.category == 1:
@@ -217,11 +217,11 @@ class App(object):
 			else:
 				self.set_time = time+":00:00"
 				entries['Label_time'][1].config(text=self.set_time)
-			self.saveSetTime()
+			self.save_set_time()
 		else:
 			entries['Label_time'][0].config(text='Lỗi định dạng, mời thử lại', fg = 'red')
 
-	def stringTime(self, time, entries):
+	def string_time(self, time, entries):
 		try:
 			if time != datetime.datetime.strptime(time, '%H:%M:%S').strftime('%H:%M:%S'):
 				raise ValueError
@@ -242,13 +242,13 @@ class App(object):
 				except ValueError:
 					return False
 	#doc file csv
-	def read_csv_file(self, root):
-		csv_path = os.path.join(root, 'Flow.csv')
+	def read_csv_file(self, root, filename):
+		csv_path = os.path.join(root, filename)
 		df = pd.read_csv(csv_path)
 		return df
 
-	def sumWaterFlow(self, entries):
-	  df = self.read_csv_file('data')
+	def sum_water_flow(self, entries):
+	  df = self.read_csv_file('training/data', 'Flow.csv')
 	  df = df.iloc[-10:]
 	  self.entries['Tổng lượng nước đã tưới'].delete(0,END)
 	  self.entries['Tổng lượng nước đã tưới'].insert(0, df['Water flow'].sum())
@@ -262,26 +262,26 @@ class App(object):
 			self.entries['Time'].config(text = self.timenow)
 		self.entries['Time'].after(200, self.tick)
 
-	def loadSetTime(self):
-		filename = 'model/set_time.sav'
+	def load_set_time(self):
+		filename = 'training/model/set_time.sav'
 		self.set_time = pickle.load(open(filename, 'rb'))
 
-	def saveSetTime(self):
+	def save_set_time(self):
 		time = self.set_time
-		filename = 'model/set_time.sav'
+		filename = 'training/model/set_time.sav'
 		pickle.dump(time, open(filename, 'wb'))
 
-	def nhietDo(self):
+	def thuc_hien_tuoi(self):
 		day = datetime.datetime.today().strftime('%H:%M:%S')
 		if day == self.set_time:
-			test = 'model/test.sav'
+			test = 'training/model/test.sav'
 			# name = pickle.dump(True, open(test, 'wb'))
 			self.receiver_server()
 			name = pickle.load(open(test, 'rb'))
 			print('Kiem tra:', name)
 			if name==True:
 				print('Da thuc hien')
-				filename = 'model/json.sav'
+				filename = 'training/model/json.sav'
 				json = pickle.load(open(filename, 'rb'))
 				self.temperature = json['Temp']
 				self.entries['Nhiệt độ'].delete(0,END)
@@ -290,21 +290,22 @@ class App(object):
 				self.entries['Độ ẩm'].delete(0,END)
 				self.entries['Độ ẩm'].insert(0, self.humidity)
 				self.btnPredict(self.entries)
-				self.updateFile()
+				self.update_file()
 				self.figure_last(self.figure(10), self.frame)
 			name = pickle.dump(False, open(test, 'wb'))
-		self.root.after(1000, self.nhietDo) #set 1s reload
+		self.root.after(1000, self.thuc_hien_tuoi) #set 1s reload
 
-	def updateFile(self):
-		df = self.read_csv_file('data')
-		columns = ['temperature', 'Humidity', 'Water flow' ,'Day']
-		newday = datetime.datetime.today().strftime('%d/%m/%Y')
-		df = df[['temperature', 'Humidity', 'Water flow' ,'Day']].values
-		new = np.array([[int(self.temperature), int(self.humidity), int(self.waterflow), newday]])
+	def update_file(self):
+		df = self.read_csv_file('training/data', 'Flow.csv')
+		columns = ['temperature', 'Humidity', 'Water flow' ,'Day','Time']
+		day_now = datetime.datetime.today().strftime('%d/%m/%Y')
+		time_now =  datetime.datetime.today().strftime('%H:%M:%S')
+		df = df[['temperature', 'Humidity', 'Water flow' ,'Day', 'Time']].values
+		new = np.array([[int(self.temperature), int(self.humidity), int(self.waterflow), day_now]])
 		X = np.append(df, new, axis = 0)
 		df = pd.DataFrame.from_records(X, columns = columns)
 		# print(df.tail())
-		df.to_csv('./data/Flow.csv')
+		df.to_csv('./training/data/Flow.csv')
 
 	def receiver_server(self):
 		# self.socketIO.on('minh', Namespace.on_aaa_response)
