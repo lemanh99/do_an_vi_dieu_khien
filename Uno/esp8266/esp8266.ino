@@ -12,11 +12,16 @@ SerialCommand sCmd(mySerial);
 SocketIOClient socket;
 //const char* ssid = "Minh";
 //const char* password = "100419999"; 
-const char* ssid = "Dung Leo Nheo";
-const char* password = "khongchomo"; 
+//const char* ssid = "Dung Leo Nheo";
+//const char* password = "khongchomo"; 
+
+const char* ssid = "PhongTroNLB";
+const char* password = "passkhongco"; 
+
 
 //char host[] = "172.20.10.11"; 
-char host[] = "192.168.1.226"; 
+//char host[] = "192.168.1.226"; 
+char host[] = "192.168.1.10";
 int port = 3484;  
 
 char namespace_esp8266[] = "esp8266";

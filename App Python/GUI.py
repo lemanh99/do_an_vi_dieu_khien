@@ -54,7 +54,9 @@ class App(object):
  
 
 	def app(self):
-		self.socketIO = SocketIO('192.168.1.226', 3484)
+		
+		self.socketIO = SocketIO('192.168.1.8', 3484)
+		# self.socketIO = SocketIO('192.168.1.226', 3484)
 		self.app_namespace = self.socketIO.define(AppNamespace, '/webapp')
 		self.GUI_model()
 		self.root.mainloop()

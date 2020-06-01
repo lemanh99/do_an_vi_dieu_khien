@@ -53,7 +53,8 @@ class App(object):
  
 
 	def app(self):
-		self.socketIO = SocketIO('192.168.1.226', 3484)
+		self.socketIO = SocketIO('192.168.1.10', 3484)
+		# self.socketIO = SocketIO('192.168.1.226', 3484)
 		self.app_namespace = self.socketIO.define(AppNamespace, '/webapp')
 		self.GUI_model()
 		self.root.mainloop()
@@ -173,6 +174,7 @@ class App(object):
 			self.humidity = json['Humi']
 			self.entries['Độ ẩm'].delete(0,END)
 			self.entries['Độ ẩm'].insert(0, self.humidity)
+			entries['Label_notif'][1].config(text='Thành công', fg = 'red')
 		else:
 			entries['Label_notif'][1].config(text='Lỗi kết nối', fg = 'red')
 		name = pickle.dump(False, open(test, 'wb'))
