@@ -36,7 +36,7 @@ class App(object):
 	def __init__(self):
 		super(App, self).__init__()
 		self.root = Tk()
-		self.fields = ('Tổng lượng nước đã tưới', 'Nhiệt độ', 'Độ ẩm')
+		self.fields = ('Tổng lượng nước đã tưới', 'Nhiệt độ', 'Độ ẩm', 'Diện tích')
 		self.entries = {}
 		self.frame = None
 		self.buttonFrame = None
@@ -46,6 +46,7 @@ class App(object):
 		self.set_time = ''
 		self.temperature = 0 #set default- update sau 
 		self.humidity = 0  #set default- update sau 
+		self.capacity = 0  #set default
 		self.waterflow = 0 #set default- update sau 
 
 		self.socketIO = None
@@ -53,8 +54,8 @@ class App(object):
  
 
 	def app(self):
-		self.socketIO = SocketIO('192.168.77.1', 3484)
-		# self.socketIO = SocketIO('192.168.1.226', 3484)
+		self.socketIO = SocketIO('192.168.1.5', 3484)
+		# # self.socketIO = SocketIO('192.168.1.226', 3484)
 		self.app_namespace = self.socketIO.define(AppNamespace, '/webapp')
 		self.GUI_model()
 		self.root.mainloop()
@@ -142,7 +143,7 @@ class App(object):
 	  df = self.read_csv_file('data')
 	  df = df.iloc[-10:]
 	  self.entries['Tổng lượng nước đã tưới'].delete(0,END)
-	  self.entries['Tổng lượng nước đã tưới'].insert(0, df['Water flow'].sum())
+	  self.entries['Tổng lượng nước đã tưới'].insert(0, df['water flow'].sum())
 
 	#oclock
 	def tick(self):
@@ -164,6 +165,13 @@ class App(object):
 		self.receiver_server()
 		check_server = pickle.load(open(test, 'rb'))
 		print('Kiem tra:', check_server)
+		i = 0
+		while check_server==False:
+			i+=1
+			if i==4:
+				break
+			self.receiver_server()
+			check_server = pickle.load(open(test, 'rb'))
 		if check_server==True:
 			print('Da thuc hien')
 			filename = 'model/json.sav'
@@ -180,24 +188,29 @@ class App(object):
 		name = pickle.dump(False, open(test, 'wb'))
 
 	def save_value(self, entries):
+		self.temperature = self.entries['Nhiệt độ'].get()
+		self.humidity  = self.entries['Độ ẩm'].get()
+		self.capacity = self.entries['Diện tích'].get()
+	
 		df = self.read_csv_file('data')
-		columns = ['temperature', 'Humidity', 'Water flow' ,'Day','Time']
+		columns = ['temperature', 'humidity','capacity', 'water flow' ,'day','time']
 		day_now = datetime.datetime.today().strftime('%d/%m/%Y')
 		time_now =  datetime.datetime.today().strftime('%H:%M:%S')
-		df = df[['temperature', 'Humidity', 'Water flow' ,'Day', 'Time']].values
-		new = np.array([[int(self.temperature), int(self.humidity), int(self.waterflow), day_now, time_now]])
+		df = df[['temperature', 'humidity','capacity', 'water flow' ,'day','time']].values
+		new = np.array([[int(self.temperature), int(self.humidity),int(self.capacity), int(self.waterflow), day_now, time_now]])
 		X = np.append(df, new, axis = 0)
 		df = pd.DataFrame.from_records(X, columns = columns)
-		# print(df.tail())
+		print(df.tail())
 		df.to_csv('./data/Flow.csv')
 		entries['Label_notif'][1].config(text='Đã lưu giá trị', fg = 'red')
+
 
 	def receiver_server(self):
 		# self.socketIO.on('minh', Namespace.on_aaa_response)
 		self.app_namespace.emit('Flow', 1)
 		self.app_namespace.on('FArdunio', AppNamespace.on_aaa_response)
 		print('dagui')
-		self.socketIO.wait(seconds=3)
+		self.socketIO.wait(seconds=2)
 
 	def send_server(self, data):
 		print('Da Send', data)

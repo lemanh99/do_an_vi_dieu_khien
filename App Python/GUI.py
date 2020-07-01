@@ -1,16 +1,4 @@
-import math
-from tkinter import *
-import tkinter.constants
-from matplotlib import pyplot as plt
-from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
-import pandas as pd
-import os
-import pickle
-import numpy as np
-import datetime
-import time as tm
-from socketIO_client import SocketIO, BaseNamespace
-import pickle
+from lib import *
 
 class AppNamespace(BaseNamespace):
 
@@ -22,11 +10,12 @@ class AppNamespace(BaseNamespace):
 
     def on_aaa_response(self):
         filename = 'model/json.sav'
-        pickle.dump(self, open(filename, 'wb'))
+        with open(filename, "wb") as f:
+        	pickle.dump(self, f)
 
-        test = 'model/test.sav'
-        name = pickle.dump(True, open(test, 'wb'))
-        print(self)
+        check = 'model/check_connect.sav'
+        with open(check, "wb") as f:
+        	pickle.dump(True, f)
 
     def on_disconnect(self):
         print('[Disconnected]')
@@ -36,7 +25,7 @@ class App(object):
 	def __init__(self):
 		super(App, self).__init__()
 		self.root = Tk()
-		self.fields = ('Tổng lượng nước đã tưới', 'Nhiệt độ', 'Độ ẩm', 'Dự đoán')
+		self.fields = ('Tổng lượng nước đã tưới', 'Nhiệt độ', 'Độ ẩm','Diện tích', 'Dự đoán')
 		self.entries = {}
 		self.frame = None
 		self.buttonFrame = None
@@ -46,7 +35,8 @@ class App(object):
 		self.timenow = ''
 		self.set_time = ''
 		self.temperature = 0 #set default- update sau 
-		self.humidity = 0  #set default- update sau 
+		self.humidity = 0  #set default- update sau
+		self.capacity = 300
 		self.waterflow = 0 #set default- update sau 
 		self.category_time = 0
 		self.socketIO = None
@@ -55,8 +45,8 @@ class App(object):
 
 	def app(self):
 		
-		self.socketIO = SocketIO('192.168.1.8', 3484)
-		# self.socketIO = SocketIO('192.168.1.226', 3484)
+		self.socketIO = SocketIO('192.168.1.4', 3484)
+		# # self.socketIO = SocketIO('192.168.1.226', 3484)
 		self.app_namespace = self.socketIO.define(AppNamespace, '/webapp')
 		self.GUI_model()
 		self.root.mainloop()
@@ -76,24 +66,24 @@ class App(object):
 		self.frame.rowconfigure(0, weight=1)
 		self.frame.columnconfigure(0, weight=1)
 
-		self.addFigure(self.figure(10), self.frame)
-		self.sumWaterFlow(self.entries)
+		self.add_figure(self.figure(10), self.frame)
+		self.sum_water_flow(self.entries)
 		self.tick()
-		self.nhietDo()
+		self.watering()
 		
 
 		self.buttonFrame = Frame(self.root)
 		self.buttonFrame.grid(row=3, column=0, sticky=tkinter.constants.NS)
-		button1 = Button(self.buttonFrame, text = 'Tưới', 
-			command=(lambda e = ents: self.btnTuoi(e)))
-		button1.pack(side = LEFT, padx = 5, pady = 5)
+		# button1 = Button(self.buttonFrame, text = 'Tưới', 
+		# 	command=(lambda e = ents: self.btnTuoi(e)))
+		# button1.pack(side = LEFT, padx = 5, pady = 5)
 		button2 = Button(self.buttonFrame, text='Dự đoán',
-	        command=(lambda e = ents: self.btnPredict(e)))
+	        command=(lambda e = ents: self.btn_predict(e)))
 		button2.pack(side = LEFT, padx = 5, pady = 5)
 		button3 = Button(self.buttonFrame, text = 'Thoát', command = self.buttonFrame.quit)
 		button3.pack(side = LEFT, padx = 5, pady = 5)
 
-	def addFigure(self, fig, frame):
+	def add_figure(self, fig, frame):
 
 	    self.canvas = FigureCanvasTkAgg(fig, master=frame)  # A tk.DrawingArea.
 	    self.canvas.draw()
@@ -126,13 +116,13 @@ class App(object):
 			df = df.iloc[-number:]
 			figure = plt.Figure(figsize=(8, 4), dpi=100, constrained_layout=True)
 			ax = figure.add_subplot(111)
-			df = df[['Day','Water flow']]
+			df = df[['day','water flow']]
 			df.plot(kind='line', legend=True, ax=ax, color='blue',marker='o', fontsize=10)
 			ax.legend(['Lượng nước tưới'])
 			ax.set_title('Biểu đồ lượng nước đã tưới')
 			ax.set_ylabel('Lưu lượng nước (ml)')
 			ax.set_xlabel('Ngày tưới')
-			ax.set_xticklabels(df['Day'], rotation=30)
+			ax.set_xticklabels(df['day'], rotation=30)
 			ax.grid()
 
 		except:
@@ -146,12 +136,12 @@ class App(object):
 			lab = Label(row, width=22, text=field+": ", anchor='w')
 			ent = Entry(row)
 			ent.insert(0,"0")
-			# ent.configure(state='disabled')
 			row.pack(side = TOP, fill = X, padx = 5 , pady = 5)
 			lab.pack(side = LEFT)
 			ent.pack(side = RIGHT, expand = YES, fill = X)
 			self.entries[field] = ent
-
+		self.entries['Diện tích'].delete(0,END)
+		self.entries['Diện tích'].insert(0, self.capacity)
 		#Thêm thời gian
 		row = Frame(window)
 		lab = Label(row, width=22, text="Thời gian hiện tại"+": ", anchor='w')
@@ -167,7 +157,7 @@ class App(object):
 		lab = Label(row, width=22, text="Cài đặt thời gian tưới "+": ", anchor='w')
 		ent = Entry(row)
 		ent.insert(0,"")
-		btn_set_time = Button(row, text = 'Set', command=(lambda : self.btnSetTime(self.entries)))
+		btn_set_time = Button(row, text = 'Set', command=(lambda : self.btn_set_time(self.entries)))
 		row.pack(side = TOP, fill = X, padx = 5 , pady = 5)
 		lab.pack(side = LEFT)
 		btn_set_time.pack(side = RIGHT)
@@ -176,7 +166,7 @@ class App(object):
 
 		row = Frame(window)
 		label_notif = Label(row, width=22, text="Thời gian tưới là: ", anchor='w')
-		self.loadSetTime()
+		self.load_set_time()
 		label_notif1 = Label(row, width=22, anchor='w', fg = 'red')
 		label_notif1.config(text = self.set_time)
 		lab.pack(side = LEFT)
@@ -191,23 +181,29 @@ class App(object):
 
 	#du doan luong nuoc
 	def predict(self):
+		self.capacity = self.entries['Diện tích'].get()
 		try:
 			filename = 'model/finalized_model.sav'
-			reg = pickle.load(open(filename, 'rb'))
-			y_pred = reg.predict([[1, self.temperature, self.humidity]])
+			with open(filename, "rb") as f:
+				reg = pickle.load(f)
+			print(self.temperature, self.humidity, self.capacity)
+			y_pred = reg.predict([[float(self.temperature), int(self.humidity), int(self.capacity)]])
+			print(y_pred)
 		except:
 			print("Lỗi tranning model")
 		return y_pred
 
-	def btnPredict(self, entries):
+	def btn_predict(self, entries):
 		self.waterflow = round(self.predict()[0], 2)
-		self.send_server({'val': 3000})
+		time = int(round(self.waterflow/30.0, 2)*1000)
+		print(time)
+		self.send_server({'val': time})
 		entries['Dự đoán'].delete(0,END)
 		entries['Dự đoán'].insert(0, self.waterflow)
 
-	def btnSetTime(self, entries):
+	def btn_set_time(self, entries):
 		time = entries['Set Time'].get()
-		if self.stringTime(time, entries):
+		if self.check_string_time(time, entries):
 			entries['Label_time'][0].config(text='Thời gian tưới mới là:', fg = 'black')
 			entries['Label_time'][1].config(fg = 'black')
 			if self.category == 1:
@@ -219,11 +215,11 @@ class App(object):
 			else:
 				self.set_time = time+":00:00"
 				entries['Label_time'][1].config(text=self.set_time)
-			self.saveSetTime()
+			self.save_set_time()
 		else:
 			entries['Label_time'][0].config(text='Lỗi định dạng, mời thử lại', fg = 'red')
 
-	def stringTime(self, time, entries):
+	def check_string_time(self, time, entries):
 		try:
 			if time != datetime.datetime.strptime(time, '%H:%M:%S').strftime('%H:%M:%S'):
 				raise ValueError
@@ -249,11 +245,11 @@ class App(object):
 		df = pd.read_csv(csv_path)
 		return df
 
-	def sumWaterFlow(self, entries):
+	def sum_water_flow(self, entries):
 	  df = self.read_csv_file('data')
-	  df = df.iloc[-10:]
+	  # df = df.iloc[-10:]
 	  self.entries['Tổng lượng nước đã tưới'].delete(0,END)
-	  self.entries['Tổng lượng nước đã tưới'].insert(0, df['Water flow'].sum())
+	  self.entries['Tổng lượng nước đã tưới'].insert(0, df['water flow'].sum())
 
 	#oclock
 	def tick(self):
@@ -264,24 +260,33 @@ class App(object):
 			self.entries['Time'].config(text = self.timenow)
 		self.entries['Time'].after(200, self.tick)
 
-	def loadSetTime(self):
+	def load_set_time(self):
 		filename = 'model/set_time.sav'
-		self.set_time = pickle.load(open(filename, 'rb'))
+		with open(filename, "rb") as f:
+			self.set_time = pickle.load(f)
 
-	def saveSetTime(self):
-		time = self.set_time
+	def save_set_time(self):
 		filename = 'model/set_time.sav'
-		pickle.dump(time, open(filename, 'wb'))
+		with open(filename, 'wb') as f:
+			pickle.dump(self.set_time, f)
 
-	def nhietDo(self):
+	def watering(self):
 		day = datetime.datetime.today().strftime('%H:%M:%S')
 		if day == self.set_time:
-			test = 'model/test.sav'
-			# name = pickle.dump(True, open(test, 'wb'))
+			check_connect = 'model/check_connect.sav'
 			self.receiver_server()
-			name = pickle.load(open(test, 'rb'))
-			print('Kiem tra:', name)
-			if name==True:
+			with open(check_connect, 'rb') as f:
+				check = pickle.load(f)
+			print('Kiem tra:', check)
+			count = 0
+			while check==False:
+				count+=1
+				if count==4:
+					break
+				self.receiver_server()
+				with open(check_connect, 'rb') as f:
+					check = pickle.load(f)
+			if check==True:
 				print('Da thuc hien')
 				filename = 'model/json.sav'
 				json = pickle.load(open(filename, 'rb'))
@@ -291,21 +296,27 @@ class App(object):
 				self.humidity = json['Humi']
 				self.entries['Độ ẩm'].delete(0,END)
 				self.entries['Độ ẩm'].insert(0, self.humidity)
-				self.btnPredict(self.entries)
-				self.updateFile()
+				self.btn_predict(self.entries)
+				self.update_file()
 				self.figure_last(self.figure(10), self.frame)
-			name = pickle.dump(False, open(test, 'wb'))
-		self.root.after(1000, self.nhietDo) #set 1s reload
 
-	def updateFile(self):
+			with open(filename, 'wb') as f:
+				pickle.dump(False, f)
+			# name = pickle.dump(False, open(test, 'wb'))
+		self.root.after(1000, self.watering) #set 1s reload
+
+	def update_file(self):
+		self.capacity = self.entries['Diện tích'].get()
+
 		df = self.read_csv_file('data')
-		columns = ['temperature', 'Humidity', 'Water flow' ,'Day']
-		newday = datetime.datetime.today().strftime('%d/%m/%Y')
-		df = df[['temperature', 'Humidity', 'Water flow' ,'Day']].values
-		new = np.array([[int(self.temperature), int(self.humidity), int(self.waterflow), newday]])
+		columns = ['temperature', 'humidity','capacity', 'water flow' ,'day','time']
+		day_now = datetime.datetime.today().strftime('%d/%m/%Y')
+		time_now =  datetime.datetime.today().strftime('%H:%M:%S')
+		df = df[['temperature', 'humidity','capacity', 'water flow' ,'day','time']].values
+		new = np.array([[int(self.temperature), int(self.humidity),int(self.capacity), int(self.waterflow), day_now, time_now]])
 		X = np.append(df, new, axis = 0)
 		df = pd.DataFrame.from_records(X, columns = columns)
-		# print(df.tail())
+		print(df.tail())
 		df.to_csv('./data/Flow.csv')
 
 	def receiver_server(self):
